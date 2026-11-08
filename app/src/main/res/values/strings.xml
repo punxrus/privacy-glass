@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Privacy Glass</string>
+    <string name="tile_label">Phone blackout</string>
+    <string name="a11y_description">Blacks out the phone screen while your XREAL glasses are connected, so only the glasses show what you are doing. Touch keeps working normally. Privacy Glass does not read screen content; it only watches for the volume-down triple-press shortcut.</string>
+</resources>

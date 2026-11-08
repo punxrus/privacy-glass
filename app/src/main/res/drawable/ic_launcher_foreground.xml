@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Lenses: lit, like the picture inside the glasses -->
+    <path android:fillColor="#38BDF8" android:pathData="M30,42 H46 A4,4 0 0 1 50,46 V55 A9,9 0 0 1 41,64 H35 A9,9 0 0 1 26,55 V46 A4,4 0 0 1 30,42 Z" />
+    <path android:fillColor="#38BDF8" android:pathData="M62,42 H78 A4,4 0 0 1 82,46 V55 A9,9 0 0 1 73,64 H67 A9,9 0 0 1 58,55 V46 A4,4 0 0 1 62,42 Z" />
+    <!-- Lens glare -->
+    <path android:fillColor="#BAE6FD" android:pathData="M31,46 H37 L31,54 Z" />
+    <path android:fillColor="#BAE6FD" android:pathData="M63,46 H69 L63,54 Z" />
+    <!-- Frame -->
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="3.5" android:strokeLineJoin="round" android:pathData="M30,42 H46 A4,4 0 0 1 50,46 V55 A9,9 0 0 1 41,64 H35 A9,9 0 0 1 26,55 V46 A4,4 0 0 1 30,42 Z" />
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="3.5" android:strokeLineJoin="round" android:pathData="M62,42 H78 A4,4 0 0 1 82,46 V55 A9,9 0 0 1 73,64 H67 A9,9 0 0 1 58,55 V46 A4,4 0 0 1 62,42 Z" />
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="3.5" android:strokeLineCap="round" android:pathData="M50,47 Q54,43 58,47" />
+</vector>
