@@ -13,8 +13,8 @@ android {
         applicationId = "com.punxrus.privacyglass"
         minSdk = 33
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
     }
 
     // A fixed key committed to the repo so every CI build can update the
@@ -36,7 +36,6 @@ android {
     }
 
     buildFeatures {
-        aidl = true
         buildConfig = true
     }
 
@@ -51,7 +50,5 @@ kotlin {
 }
 
 dependencies {
-    implementation("dev.rikka.shizuku:api:13.1.5")
-    implementation("dev.rikka.shizuku:provider:13.1.5")
     implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
 }

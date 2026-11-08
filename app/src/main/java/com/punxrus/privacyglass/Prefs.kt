@@ -2,24 +2,8 @@ package com.punxrus.privacyglass
 
 import android.content.Context
 
-enum class Mode(val label: String) {
-    OVERLAY_WINDOW("Overlay A: black window"),
-    OVERLAY_LAYER("Overlay B: black layer"),
-    PANEL_OFF("Panel off (Shizuku)");
-
-    val isOverlay get() = this != PANEL_OFF
-}
-
 class Prefs(context: Context) {
     private val sp = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
-
-    var mode: Mode
-        get() = when (val s = sp.getString("mode", null)) {
-            "OVERLAY" -> Mode.OVERLAY_LAYER // value saved by v0.1.0
-            null -> Mode.OVERLAY_WINDOW
-            else -> runCatching { Mode.valueOf(s) }.getOrDefault(Mode.OVERLAY_WINDOW)
-        }
-        set(v) = sp.edit().putString("mode", v.name).apply()
 
     var autoOnConnect: Boolean
         get() = sp.getBoolean("auto", true)

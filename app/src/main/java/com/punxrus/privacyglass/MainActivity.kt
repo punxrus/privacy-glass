@@ -10,33 +10,25 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
-import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.LinearLayout
-import android.widget.RadioButton
-import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import rikka.shizuku.Shizuku
 
 class MainActivity : Activity() {
 
     private lateinit var prefs: Prefs
     private lateinit var status: TextView
     private lateinit var toggleBtn: Button
-    private lateinit var shizukuRow: LinearLayout
-    private lateinit var shizukuStatus: TextView
     private lateinit var logView: TextView
     private val logListener: () -> Unit = { logView.text = DebugLog.text() }
     private val listener: () -> Unit = { runOnUiThread { refresh() } }
-    private val shizukuListener = Shizuku.OnRequestPermissionResultListener { _, _ -> runOnUiThread { refresh() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
-        Shizuku.addRequestPermissionResultListener(shizukuListener)
 
         val pad = (16 * resources.displayMetrics.density).toInt()
         val col = LinearLayout(this).apply {
@@ -70,39 +62,13 @@ class MainActivity : Activity() {
             }
         })
 
-        header("2. Blackout method")
-        val group = RadioGroup(this)
-        val ids = Mode.entries.associateWith { View.generateViewId() }
-        Mode.entries.forEach { m -> group.addView(RadioButton(this).apply { id = ids.getValue(m); text = m.label }) }
-        group.check(ids.getValue(prefs.mode))
-        group.setOnCheckedChangeListener { _, id ->
-            prefs.mode = ids.entries.first { it.value == id }.key
-            DebugLog.log("Mode set to ${prefs.mode}")
-            reapply()
-            refresh()
-        }
-        col.addView(group)
-        body("Overlay A / B: the phone draws black, and the glasses are told to skip it. Touch always works. Try A first, then B.\n" +
-            "Panel off: turns the panel fully off. Use it if both overlays also black out the glasses. On some phones touch stops working while the panel is off.")
-
-        shizukuRow = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        shizukuStatus = TextView(this).apply { textSize = 14f; setPadding(0, pad / 2, 0, 0) }
-        shizukuRow.addView(shizukuStatus)
-        shizukuRow.addView(Button(this).apply {
-            text = "Grant Shizuku permission"
-            setOnClickListener {
-                if (Shizuku.pingBinder()) Shizuku.requestPermission(1) else refresh()
-            }
-        })
-        col.addView(shizukuRow)
-
-        header("3. Options")
+        header("2. Options")
         check("Black out automatically when glasses connect", { prefs.autoOnConnect }) { prefs.autoOnConnect = it }
         check("Keep phone awake while blacked out", { prefs.keepAwake }) { prefs.keepAwake = it; reapply() }
         check("Force landscape (fills the glasses better)", { prefs.forceLandscape }) { prefs.forceLandscape = it; reapply() }
         check("Volume-down ×3 toggles blackout", { prefs.volumeShortcut }) { prefs.volumeShortcut = it }
 
-        header("4. Try it")
+        header("3. Try it")
         col.addView(Button(this).apply {
             text = "Test for 10 seconds"
             setOnClickListener { withService("Test") { it.test(10) } }
@@ -115,8 +81,8 @@ class MainActivity : Activity() {
         header("Getting the screen back")
         body("• Glasses unplugged → restored automatically\n" +
             "• Press volume-down three times quickly\n" +
-            "• Quick Settings tile \"Phone blackout\" (add it via the pencil icon)\n" +
-            "• Panel-off mode: the power button also wakes the panel")
+            "• Quick Settings tile \"Phone blackout\" (add it via the pencil icon)")
+
 
         header("Diagnostics")
         body("If something doesn't work, tap Copy log and paste it to whoever is helping you.")
@@ -184,11 +150,6 @@ class MainActivity : Activity() {
         super.onPause()
     }
 
-    override fun onDestroy() {
-        Shizuku.removeRequestPermissionResultListener(shizukuListener)
-        super.onDestroy()
-    }
-
     private fun refresh() {
         val svc = PrivacyGlassService.instance
         val glasses = svc?.glasses()
@@ -213,8 +174,5 @@ class MainActivity : Activity() {
             svc?.lastError?.let { append("\n❗ $it") }
         }
         toggleBtn.text = if (svc?.active == true) "Turn blackout off" else "Turn blackout on"
-
-        shizukuRow.visibility = if (prefs.mode == Mode.PANEL_OFF) View.VISIBLE else View.GONE
-        shizukuStatus.text = PanelPower.shizukuProblem()?.let { "⚠️ $it" } ?: "✅ Shizuku ready"
     }
 }

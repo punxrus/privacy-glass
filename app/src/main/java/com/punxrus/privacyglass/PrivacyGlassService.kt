@@ -1,10 +1,7 @@
 package com.punxrus.privacyglass
 
 import android.accessibilityservice.AccessibilityService
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.Looper
@@ -29,11 +26,9 @@ class PrivacyGlassService : AccessibilityService() {
     private lateinit var prefs: Prefs
     private lateinit var displays: DisplayManager
     private lateinit var window: BlackoutWindow
-    private lateinit var panel: PanelPower
 
     var active = false
         private set
-    private var activeMode: Mode? = null
     var lastError: String? = null
         private set
 
@@ -61,16 +56,6 @@ class PrivacyGlassService : AccessibilityService() {
         override fun onDisplayChanged(displayId: Int) = Unit
     }
 
-    // Panel-off mode: a power-button wake turns the panel back on, so
-    // re-apply after unlock while the glasses are still attached.
-    private val screenReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == Intent.ACTION_USER_PRESENT && active && activeMode == Mode.PANEL_OFF) {
-                handler.postDelayed({ if (active) panel.setPanelPower(false) { it?.let(::onFailure) } }, 700)
-            }
-        }
-    }
-
     override fun onServiceConnected() {
         DebugLog.init(this)
         DebugLog.log("Accessibility service connected")
@@ -78,9 +63,7 @@ class PrivacyGlassService : AccessibilityService() {
             prefs = Prefs(this)
             displays = getSystemService(DisplayManager::class.java)
             window = BlackoutWindow(this)
-            panel = PanelPower(packageName)
             displays.registerDisplayListener(displayListener, handler)
-            registerReceiver(screenReceiver, IntentFilter(Intent.ACTION_USER_PRESENT), RECEIVER_EXPORTED)
             instance = this
             DebugLog.log("Service ready. ${describeDisplays()}")
             if (prefs.autoOnConnect && glasses() != null) activate()
@@ -101,8 +84,6 @@ class PrivacyGlassService : AccessibilityService() {
         if (instance === this) {
             deactivate()
             runCatching { displays.unregisterDisplayListener(displayListener) }
-            runCatching { unregisterReceiver(screenReceiver) }
-            panel.release()
             instance = null
         }
         super.onDestroy()
@@ -147,22 +128,15 @@ class PrivacyGlassService : AccessibilityService() {
     fun activate() {
         if (active) deactivate()
         lastError = null
-        val mode = prefs.mode
-        DebugLog.log("Activate: mode=$mode. ${describeDisplays()}")
+        DebugLog.log("Activate. ${describeDisplays()}")
         active = true
-        activeMode = mode
         try {
-            window.show(mode, keepAwake = prefs.keepAwake, landscape = prefs.forceLandscape, onError = ::onFailure)
+            window.show(keepAwake = prefs.keepAwake, landscape = prefs.forceLandscape, onError = ::onFailure)
         } catch (e: Throwable) {
             DebugLog.error("addView failed", e)
             return onFailure("Couldn't add overlay: $e")
         }
-        if (mode == Mode.PANEL_OFF) {
-            panel.setPanelPower(false) { err ->
-                if (err == null) DebugLog.log("Panel power off: OK") else onFailure("Panel off failed: $err")
-            }
-        }
-        if (active) toast("Blackout ON (${mode.label})")
+        if (active) toast("Blackout ON")
         notifyChanged()
     }
 
@@ -170,12 +144,8 @@ class PrivacyGlassService : AccessibilityService() {
         cancelTest()
         if (!active) return
         DebugLog.log("Deactivate")
-        if (activeMode == Mode.PANEL_OFF) panel.setPanelPower(true) { err ->
-            DebugLog.log("Panel power on: ${err ?: "OK"}")
-        }
         window.hide()
         active = false
-        activeMode = null
         notifyChanged()
     }
 
