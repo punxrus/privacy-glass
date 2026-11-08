@@ -26,6 +26,9 @@ If something doesn't work, use **Copy log** at the bottom of the app and share t
 - Press **volume-down three times** quickly.
 - Quick Settings tile **Phone blackout** (add it from the pencil/edit menu). You can operate it while looking at the glasses.
 
+## Uninstall
+Open the app → **Uninstall Privacy Glass**. It switches the blackout off first, then shows Android's uninstall prompt. (Settings → Apps → Privacy Glass → Uninstall also works.)
+
 ## Options
 - **Keep phone awake**: stops the phone from sleeping (which would also blank the glasses) while blacked out.
 - **Force landscape**: a portrait phone mirrored to a 16:9 display leaves big black bars. Landscape fills the glasses better. Apps that lock themselves to portrait may ignore this.

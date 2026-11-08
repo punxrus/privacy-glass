@@ -84,6 +84,20 @@ class MainActivity : Activity() {
             "• Quick Settings tile \"Phone blackout\" (add it via the pencil icon)")
 
 
+        header("Uninstall")
+        body("Turns the blackout off, then asks Android to remove the app.")
+        col.addView(Button(this).apply {
+            text = "Uninstall Privacy Glass"
+            setOnClickListener {
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("Uninstall Privacy Glass?")
+                    .setMessage("The phone screen will come back on and the app will be removed.")
+                    .setPositiveButton("Uninstall") { _, _ -> uninstall() }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        })
+
         header("Diagnostics")
         body("If something doesn't work, tap Copy log and paste it to whoever is helping you.")
         val row = LinearLayout(this)
@@ -130,6 +144,12 @@ class MainActivity : Activity() {
         val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
         val me = ComponentName(this, PrivacyGlassService::class.java)
         return enabled.split(':').any { ComponentName.unflattenFromString(it) == me }
+    }
+
+    private fun uninstall() {
+        DebugLog.log("Uninstall requested")
+        PrivacyGlassService.instance?.deactivate()
+        startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName")))
     }
 
     private fun reapply() {
