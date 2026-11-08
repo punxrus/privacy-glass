@@ -43,6 +43,7 @@ class PrivacyGlassService : AccessibilityService() {
 
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {
+            DebugLog.log("Display added: $displayId. ${describeDisplays()}")
             if (prefs.autoOnConnect && !active && glasses() != null) {
                 // Give the mirror a moment to settle before blacking out.
                 handler.postDelayed({ if (!active && glasses() != null) activate() }, 1500)
@@ -50,6 +51,7 @@ class PrivacyGlassService : AccessibilityService() {
             notifyChanged()
         }
         override fun onDisplayRemoved(displayId: Int) {
+            DebugLog.log("Display removed: $displayId")
             if (glasses() == null && active) {
                 deactivate()
                 toast("Glasses disconnected - phone screen restored")
@@ -70,18 +72,32 @@ class PrivacyGlassService : AccessibilityService() {
     }
 
     override fun onServiceConnected() {
-        instance = this
-        prefs = Prefs(this)
-        displays = getSystemService(DisplayManager::class.java)
-        window = BlackoutWindow(this)
-        panel = PanelPower(packageName)
-        displays.registerDisplayListener(displayListener, handler)
-        registerReceiver(screenReceiver, IntentFilter(Intent.ACTION_USER_PRESENT), RECEIVER_EXPORTED)
-        if (prefs.autoOnConnect && glasses() != null) activate()
+        DebugLog.init(this)
+        DebugLog.log("Accessibility service connected")
+        try {
+            prefs = Prefs(this)
+            displays = getSystemService(DisplayManager::class.java)
+            window = BlackoutWindow(this)
+            panel = PanelPower(packageName)
+            displays.registerDisplayListener(displayListener, handler)
+            registerReceiver(screenReceiver, IntentFilter(Intent.ACTION_USER_PRESENT), RECEIVER_EXPORTED)
+            instance = this
+            DebugLog.log("Service ready. ${describeDisplays()}")
+            if (prefs.autoOnConnect && glasses() != null) activate()
+        } catch (e: Throwable) {
+            DebugLog.error("Service startup failed", e)
+            toast("Privacy Glass failed to start: $e")
+        }
         notifyChanged()
     }
 
+    override fun onUnbind(intent: Intent?): Boolean {
+        DebugLog.log("Accessibility service unbound (turned off?)")
+        return super.onUnbind(intent)
+    }
+
     override fun onDestroy() {
+        DebugLog.log("Accessibility service destroyed")
         if (instance === this) {
             deactivate()
             runCatching { displays.unregisterDisplayListener(displayListener) }
@@ -108,14 +124,23 @@ class PrivacyGlassService : AccessibilityService() {
         if (++volumePresses >= 3) {
             volumePresses = 0
             firstPressAt = 0
+            DebugLog.log("Volume-down x3 shortcut")
             toggle()
         }
         return false
     }
 
+    fun describeDisplays(): String = "Displays: " + displays.displays.joinToString { d ->
+        val m = d.mode
+        "#${d.displayId} '${d.name}' ${m.physicalWidth}x${m.physicalHeight} flags=0x${Integer.toHexString(d.flags)} state=${d.state}"
+    } + " | presentation: " + displays.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).joinToString { "#${it.displayId}" }
+
     /** The glasses, or null. Mirrored USB-C displays are flagged as presentation displays. */
-    fun glasses(): Display? = displays.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
-        .firstOrNull { it.displayId != Display.DEFAULT_DISPLAY && (it.flags and Display.FLAG_PRIVATE) == 0 }
+    fun glasses(): Display? {
+        fun ok(d: Display) = d.displayId != Display.DEFAULT_DISPLAY && (d.flags and Display.FLAG_PRIVATE) == 0
+        return displays.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).firstOrNull(::ok)
+            ?: displays.displays.firstOrNull(::ok)
+    }
 
     fun toggle() = if (active) deactivate() else activate()
 
@@ -123,28 +148,31 @@ class PrivacyGlassService : AccessibilityService() {
         if (active) deactivate()
         lastError = null
         val mode = prefs.mode
+        DebugLog.log("Activate: mode=$mode. ${describeDisplays()}")
         active = true
         activeMode = mode
         try {
-            window.show(
-                drawBlack = mode == Mode.OVERLAY,
-                keepAwake = prefs.keepAwake,
-                landscape = prefs.forceLandscape,
-                onError = ::onFailure,
-            )
+            window.show(mode, keepAwake = prefs.keepAwake, landscape = prefs.forceLandscape, onError = ::onFailure)
         } catch (e: Throwable) {
+            DebugLog.error("addView failed", e)
             return onFailure("Couldn't add overlay: $e")
         }
         if (mode == Mode.PANEL_OFF) {
-            panel.setPanelPower(false) { err -> err?.let(::onFailure) }
+            panel.setPanelPower(false) { err ->
+                if (err == null) DebugLog.log("Panel power off: OK") else onFailure("Panel off failed: $err")
+            }
         }
+        if (active) toast("Blackout ON (${mode.label})")
         notifyChanged()
     }
 
     fun deactivate() {
         cancelTest()
         if (!active) return
-        if (activeMode == Mode.PANEL_OFF) panel.setPanelPower(true) { }
+        DebugLog.log("Deactivate")
+        if (activeMode == Mode.PANEL_OFF) panel.setPanelPower(true) { err ->
+            DebugLog.log("Panel power on: ${err ?: "OK"}")
+        }
         window.hide()
         active = false
         activeMode = null
@@ -165,6 +193,7 @@ class PrivacyGlassService : AccessibilityService() {
     }
 
     private fun onFailure(msg: String) {
+        DebugLog.log("Failure: $msg")
         lastError = msg
         toast(msg)
         deactivate()
@@ -176,9 +205,11 @@ class PrivacyGlassService : AccessibilityService() {
 
     private fun notifyChanged() {
         listeners.forEach { it() }
-        TileService.requestListeningState(
-            this, android.content.ComponentName(this, BlackoutTileService::class.java)
-        )
+        runCatching {
+            TileService.requestListeningState(
+                this, android.content.ComponentName(this, BlackoutTileService::class.java)
+            )
+        }
     }
 
     companion object {

@@ -13,8 +13,8 @@ android {
         applicationId = "com.punxrus.privacyglass"
         minSdk = 33
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     // A fixed key committed to the repo so every CI build can update the

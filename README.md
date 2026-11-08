@@ -8,7 +8,7 @@ Pixel phones (8 and newer) send video over USB-C (DisplayPort Alt Mode), and by 
 
 | Method | What it does | Needs | Touch |
 |---|---|---|---|
-| **Black overlay** (default) | Covers the phone with a black layer flagged *skip screenshot*. Android draws that kind of layer only on the built-in panel, never on external displays, recordings or screenshots, so the glasses don't see it. The overlay is an accessibility overlay, which Android lets touches pass through. | Nothing extra | Always works |
+| **Overlay A / B** (default) | Covers the phone with black flagged *skip screenshot* (A: the overlay window itself; B: a separate layer inside it). Android draws that kind of layer only on the built-in panel, never on external displays, recordings or screenshots, so the glasses don't see it. The overlay is an accessibility overlay, which Android lets touches pass through. | Nothing extra | Always works |
 | **Panel off** (fallback) | Turns the phone panel off with DisplayManager's hidden `requestDisplayPower()`, the same call scrcpy uses. Android stays awake and keeps mirroring. | [Shizuku](https://shizuku.rikka.app/) | May stop on some phones: the touch chip can sleep when the panel turns off |
 
 Both methods rely on undocumented Android behaviour, so **test before trusting**: the app has a "Test for 10 seconds" button that always restores the screen.
@@ -21,7 +21,8 @@ Both methods rely on undocumented Android behaviour, so **test before trusting**
 3. Plug in the glasses. Use the normal mirrored output: if you turned on *desktop mode* in Developer options, turn it off.
 4. Tap **Test for 10 seconds**:
    - Phone black, glasses normal, touch works → done. Leave *Black out automatically* on.
-   - Glasses also go black → switch to **Panel off** (below).
+   - Glasses also go black, or nothing happens → try **Overlay B**, then **Panel off** (below).
+   - Still stuck → **Copy log** at the bottom of the app and share it.
 
 ### Panel off mode (only if needed)
 1. Install Shizuku from the Play Store and start it via **Wireless debugging** (see Shizuku's in-app guide; you'll need to restart it after each reboot).

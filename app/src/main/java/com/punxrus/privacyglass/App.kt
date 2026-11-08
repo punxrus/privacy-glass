@@ -6,7 +6,9 @@ import org.lsposed.hiddenapibypass.HiddenApiBypass
 class App : Application() {
     override fun onCreate() {
         super.onCreate()
-        // Lets us call SurfaceControl.Transaction#setSkipScreenshot, a hidden API.
-        HiddenApiBypass.addHiddenApiExemptions("Landroid/view/SurfaceControl")
+        DebugLog.init(this)
+        // Lets us call hidden APIs such as SurfaceControl.Transaction#setSkipScreenshot.
+        val ok = runCatching { HiddenApiBypass.addHiddenApiExemptions("L") }
+        DebugLog.log("Hidden API exemption: ${ok.getOrNull() ?: ok.exceptionOrNull()}")
     }
 }

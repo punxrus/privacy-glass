@@ -1,6 +1,10 @@
 package com.punxrus.privacyglass
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Typeface
 import android.net.Uri
@@ -14,6 +18,7 @@ import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import rikka.shizuku.Shizuku
 
 class MainActivity : Activity() {
@@ -23,6 +28,8 @@ class MainActivity : Activity() {
     private lateinit var toggleBtn: Button
     private lateinit var shizukuRow: LinearLayout
     private lateinit var shizukuStatus: TextView
+    private lateinit var logView: TextView
+    private val logListener: () -> Unit = { logView.text = DebugLog.text() }
     private val listener: () -> Unit = { runOnUiThread { refresh() } }
     private val shizukuListener = Shizuku.OnRequestPermissionResultListener { _, _ -> runOnUiThread { refresh() } }
 
@@ -65,18 +72,18 @@ class MainActivity : Activity() {
 
         header("2. Blackout method")
         val group = RadioGroup(this)
-        val overlay = RadioButton(this).apply { id = View.generateViewId(); text = "Black overlay (try first, no extra apps)" }
-        val panelOff = RadioButton(this).apply { id = View.generateViewId(); text = "Panel off (needs Shizuku)" }
-        group.addView(overlay); group.addView(panelOff)
-        group.check(if (prefs.mode == Mode.OVERLAY) overlay.id else panelOff.id)
+        val ids = Mode.entries.associateWith { View.generateViewId() }
+        Mode.entries.forEach { m -> group.addView(RadioButton(this).apply { id = ids.getValue(m); text = m.label }) }
+        group.check(ids.getValue(prefs.mode))
         group.setOnCheckedChangeListener { _, id ->
-            prefs.mode = if (id == overlay.id) Mode.OVERLAY else Mode.PANEL_OFF
-            PrivacyGlassService.instance?.takeIf { it.active }?.activate() // re-apply in new mode
+            prefs.mode = ids.entries.first { it.value == id }.key
+            DebugLog.log("Mode set to ${prefs.mode}")
+            reapply()
             refresh()
         }
         col.addView(group)
-        body("Overlay: panel stays lit but draws black, and the glasses skip that layer. Touch always works.\n" +
-            "Panel off: turns the panel off completely. Fallback if the overlay also shows up on the glasses. On some phones touch stops working while the panel is off. Test it first.")
+        body("Overlay A / B: the phone draws black, and the glasses are told to skip it. Touch always works. Try A first, then B.\n" +
+            "Panel off: turns the panel fully off. Use it if both overlays also black out the glasses. On some phones touch stops working while the panel is off.")
 
         shizukuRow = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         shizukuStatus = TextView(this).apply { textSize = 14f; setPadding(0, pad / 2, 0, 0) }
@@ -98,10 +105,10 @@ class MainActivity : Activity() {
         header("4. Try it")
         col.addView(Button(this).apply {
             text = "Test for 10 seconds"
-            setOnClickListener { PrivacyGlassService.instance?.test(10) ?: refresh() }
+            setOnClickListener { withService("Test") { it.test(10) } }
         })
         toggleBtn = Button(this).apply {
-            setOnClickListener { PrivacyGlassService.instance?.toggle(); refresh() }
+            setOnClickListener { withService("Toggle") { it.toggle() } }
         }
         col.addView(toggleBtn)
 
@@ -111,7 +118,52 @@ class MainActivity : Activity() {
             "• Quick Settings tile \"Phone blackout\" (add it via the pencil icon)\n" +
             "• Panel-off mode: the power button also wakes the panel")
 
+        header("Diagnostics")
+        body("If something doesn't work, tap Copy log and paste it to whoever is helping you.")
+        val row = LinearLayout(this)
+        row.addView(Button(this).apply {
+            text = "Copy log"
+            setOnClickListener {
+                getSystemService(ClipboardManager::class.java)
+                    .setPrimaryClip(ClipData.newPlainText("Privacy Glass log", DebugLog.text()))
+                Toast.makeText(this@MainActivity, "Log copied", Toast.LENGTH_SHORT).show()
+            }
+        })
+        row.addView(Button(this).apply { text = "Clear log"; setOnClickListener { DebugLog.clear() } })
+        col.addView(row)
+        logView = TextView(this).apply {
+            textSize = 11f; typeface = Typeface.MONOSPACE; setTextIsSelectable(true); alpha = 0.8f
+        }
+        col.addView(logView)
+
         setContentView(ScrollView(this).apply { addView(col); isFillViewport = true })
+    }
+
+    /** Runs [block] if the accessibility service is live, otherwise explains why nothing can happen. */
+    private fun withService(what: String, block: (PrivacyGlassService) -> Unit) {
+        val svc = PrivacyGlassService.instance
+        DebugLog.log("$what pressed; service running=${svc != null}, enabled in settings=${serviceEnabledInSettings()}")
+        if (svc != null) {
+            block(svc)
+        } else {
+            val msg = if (serviceEnabledInSettings())
+                "The service is switched on but not running. Turn Privacy Glass off and on again in Accessibility settings."
+            else
+                "Turn on Privacy Glass in Accessibility settings first (step 1)."
+            AlertDialog.Builder(this)
+                .setTitle("Service not running")
+                .setMessage(msg)
+                .setPositiveButton("Open settings") { _, _ -> startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+        refresh()
+    }
+
+    private fun serviceEnabledInSettings(): Boolean {
+        val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
+        val me = ComponentName(this, PrivacyGlassService::class.java)
+        return enabled.split(':').any { ComponentName.unflattenFromString(it) == me }
     }
 
     private fun reapply() {
@@ -121,11 +173,14 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         PrivacyGlassService.listeners += listener
+        DebugLog.listeners += logListener
+        logListener()
         refresh()
     }
 
     override fun onPause() {
         PrivacyGlassService.listeners -= listener
+        DebugLog.listeners -= logListener
         super.onPause()
     }
 
@@ -138,7 +193,13 @@ class MainActivity : Activity() {
         val svc = PrivacyGlassService.instance
         val glasses = svc?.glasses()
         status.text = buildString {
-            append(if (svc != null) "✅ Service enabled" else "⚠️ Service not enabled (step 1)")
+            append(
+                when {
+                    svc != null -> "✅ Service running"
+                    serviceEnabledInSettings() -> "⚠️ Service switched on but NOT running. Toggle it off and on in Accessibility settings"
+                    else -> "⚠️ Service not enabled (step 1)"
+                }
+            )
             append('\n')
             append(
                 when {
@@ -152,7 +213,6 @@ class MainActivity : Activity() {
             svc?.lastError?.let { append("\n❗ $it") }
         }
         toggleBtn.text = if (svc?.active == true) "Turn blackout off" else "Turn blackout on"
-        toggleBtn.isEnabled = svc != null
 
         shizukuRow.visibility = if (prefs.mode == Mode.PANEL_OFF) View.VISIBLE else View.GONE
         shizukuStatus.text = PanelPower.shizukuProblem()?.let { "⚠️ $it" } ?: "✅ Shizuku ready"
